@@ -1,10 +1,13 @@
 package study.querydsl;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Predicate;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
@@ -27,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import study.querydsl.dto.MemberDto;
+import study.querydsl.dto.QMemberDto;
 import study.querydsl.dto.UserDto;
 import study.querydsl.entity.Member;
 import study.querydsl.entity.QMember;
@@ -476,13 +480,13 @@ public class QuerydslBasicTest {
     @Test
     public void findDtoByConstructor() throws Exception {
         //given
-        List<MemberDto> result = queryFactory.select(Projections.constructor(MemberDto.class,
+        List<UserDto> result = queryFactory.select(Projections.constructor(UserDto.class,
                         member.username,
                         member.age))
                 .from(member)
                 .fetch();
 
-        for (MemberDto memberDto : result) {
+        for (UserDto memberDto : result) {
             System.out.println("memberDto = " + memberDto);
         }
         //when
@@ -512,4 +516,155 @@ public class QuerydslBasicTest {
         //then
 
     }
+
+    @Test
+    public void findDtoQueryProjection() throws Exception {
+        //given
+        List<MemberDto> result = queryFactory
+                .select(new QMemberDto(member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+        //when
+
+        //then
+
+    }
+
+    @Test
+    public void dynamicQuery_BooleanBuilder() throws Exception {
+        String usernameParam = "member1";
+        Integer ageParam = null;
+
+        List<Member> result = searchMember1(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+
+    }
+
+    private List<Member> searchMember1(String usernameCond, Integer ageCond) {
+        BooleanBuilder builder = new BooleanBuilder();
+        if (usernameCond != null) {
+            builder.and(member.username.eq(usernameCond));
+        }
+
+        if (ageCond != null) {
+            builder.and(member.age.eq(ageCond));
+        }
+        return queryFactory
+                .select(member)
+                .from(member)
+                .where(builder)
+                .fetch();
+    }
+
+    @Test
+    public void dynamicQuery_WhereParam() throws Exception {
+        String usernameParam = "member1";
+        Integer ageParam = 10;
+
+        List<Member> result = searchMember2(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+
+    }
+    private List<Member> searchMember2(String usernameCond, Integer ageCond) {
+        return queryFactory
+                .selectFrom(member)
+                .where(allEq(usernameCond,ageCond))
+                .fetch();
+    }
+
+    private BooleanExpression usernameEq(String usernameCond) {
+       return usernameCond != null ? member.username.eq(usernameCond) : null;
+    }
+
+    private BooleanExpression ageEq(Integer ageCond) {
+        return ageCond != null ?  member.age.eq(ageCond) : null;
+    }
+
+    private BooleanExpression allEq(String usernameCond, Integer ageCond) {
+        return usernameEq(usernameCond).and(ageEq(ageCond));
+    }
+
+    @Test
+    public void bulkUdpate() throws Exception {
+        //given
+        long count = queryFactory.update(member)
+                .set(member.username, "비회원")
+                .where(member.age.lt(21))
+                .execute();
+
+        em.flush();
+        em.clear();
+
+        List<Member> result = queryFactory.selectFrom(member)
+                .fetch();
+
+        for (Member member1 : result) {
+            System.out.println("member1 = " + member1);
+        }
+        //when
+
+        //then
+
+    }
+
+    @Test
+    public void bulkAdd() throws Exception {
+        //given
+        long count = queryFactory.update(member)
+                .set(member.age, member.age.multiply(2))
+                .execute();
+        //when
+
+        //then
+
+    }
+    @Test
+    public void bulkDelete() throws Exception {
+        //given
+        long count = queryFactory.delete(member)
+                .where(member.age.gt(18))
+                .execute();
+        //when
+
+        //then
+
+    }
+    @Test
+    public void sqlFunction() throws Exception {
+        //given
+        List<String> result = queryFactory.select(
+                        Expressions.stringTemplate("function('replace', {0}, {1}, {2})", member.username, "member", "M"))
+                .from(member)
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+        //when
+
+        //then
+
+    }
+    @Test
+    public void sqlFunction2() throws Exception {
+        //given
+        List<String> result = queryFactory.select(member.username)
+                .from(member)
+//                .where(member.username.eq(Expressions.stringTemplate("function('lower', {0})", member.username)))
+                .where(member.username.eq(member.username.lower()))
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+        //when
+
+        //then
+
+    }
+
 }
